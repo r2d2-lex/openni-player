@@ -1,5 +1,6 @@
 from PyQt5 import QtWidgets
 from openni import openni2
+from openni.utils import OpenNIError
 import numpy as np
 import cv2
 import mydesign
@@ -95,7 +96,7 @@ class MyWindow(QtWidgets.QMainWindow, mydesign.Ui_MainWindow):
                 new_playback(self.new_frame_index, False)
 
             if self.frame_index > self.frame_max_count+1:
-                self.new_index_playback(self.frame_max_count)
+                new_playback(self.frame_max_count, True)
                 continue
 
             if not self.pause_flag:
@@ -120,7 +121,7 @@ class MyWindow(QtWidgets.QMainWindow, mydesign.Ui_MainWindow):
         try:
             self.player.seek(color_stream, frame_index)
             self.player.seek(depth_stream, frame_index)
-        except Exception as err:
+        except OpenNIError as err:
             print('Ошибка Seek: ', err)
             sys.exit()
         return
