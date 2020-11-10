@@ -9,6 +9,7 @@ import sys
 ESCAPE = 27
 WAIT_KEY_TIMEOUT = 20
 OPENNI_FOLDER_PATH = r'./OpenNI-Linux-x64-2.3/Redist'
+CASCADE_PATH = "cascades/haarcascade_frontalface_default.xml"
 
 
 class MyWindow(QtWidgets.QMainWindow, mydesign.Ui_MainWindow):
@@ -29,6 +30,8 @@ class MyWindow(QtWidgets.QMainWindow, mydesign.Ui_MainWindow):
         self.new_position = False
         self.pause_flag = False
         self.player = None
+        # каскады Хаара
+        self.face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
 
     def reset_vars(self):
         self.frame_index = 0
@@ -105,7 +108,7 @@ class MyWindow(QtWidgets.QMainWindow, mydesign.Ui_MainWindow):
 
                 depth_frame = depth_stream.read_frame()
                 color_frame = color_stream.read_frame()
-                depth_array, color_array = prepare_arrays(depth_frame, color_frame)
+                depth_array, color_array = self.prepare_arrays(depth_frame, color_frame)
                 cv2.imshow('Depth', depth_array)
                 cv2.imshow("Color", color_array)
                 self.frame_index += 1
@@ -142,26 +145,38 @@ class MyWindow(QtWidgets.QMainWindow, mydesign.Ui_MainWindow):
         openni2.unload()
         self.exit_app = True
 
+    def face_detect(self, color_array):
+        gray_array = cv2.cvtColor(color_array, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(
+            gray_array,
+            scaleFactor=1.2,
+            minNeighbors=3,
+            minSize=(30, 30)
+        )
+        for (x, y, w, h) in faces:
+            cv2.rectangle(color_array, (x, y), (x+w, y+h), (255, 0, 0), 2)
+        return color_array
+
+    def prepare_arrays(self, frame_depth, frame_color):
+        depth_divider = 5000.  # depth_divider = 2300.
+        frame_depth_data = frame_depth.get_buffer_as_uint16()
+        frame_color_data = frame_color.get_buffer_as_uint8()
+        depth_array = np.ndarray((frame_depth.height, frame_depth.width),
+                                 dtype=np.uint16,
+                                 buffer=frame_depth_data) / depth_divider
+        color_array = np.ndarray((frame_color.height, frame_color.width, 3),
+                                 dtype=np.uint8,
+                                 buffer=frame_color_data)
+        color_array = self.face_detect(color_array)
+        color_array = cv2.cvtColor(color_array, cv2.COLOR_BGR2RGB)
+        return depth_array, color_array
+
 
 def openni_init(filename):
     openni2.initialize(OPENNI_FOLDER_PATH)
     dev = openni2.Device.open_file(filename.encode('utf-8'))
     # print('Инфо: {}'.format(dev.get_device_info()))
     return dev
-
-
-def prepare_arrays(frame_depth, frame_color):
-    depth_divider = 5000.  # depth_divider = 2300.
-    frame_depth_data = frame_depth.get_buffer_as_uint16()
-    frame_color_data = frame_color.get_buffer_as_uint8()
-    depth_array = np.ndarray((frame_depth.height, frame_depth.width),
-                             dtype=np.uint16,
-                             buffer=frame_depth_data) / depth_divider
-    color_array = np.ndarray((frame_color.height, frame_color.width, 3),
-                             dtype=np.uint8,
-                             buffer=frame_color_data)
-    color_array = cv2.cvtColor(color_array, cv2.COLOR_BGR2RGB)
-    return depth_array, color_array
 
 
 def main():
